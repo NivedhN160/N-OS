@@ -63,4 +63,41 @@ typedef struct {
     unsigned short seq;
 } __attribute__((packed)) icmp_packet_t;
 
+#define AF_INET 2
+#define SOCK_STREAM 1
+#define IPPROTO_TCP 6
+
+struct sockaddr_in {
+    short sin_family;
+    unsigned short sin_port;
+    unsigned int sin_addr;
+};
+
+typedef enum {
+    SOCK_CLOSED = 0,
+    SOCK_SYN_SENT,
+    SOCK_ESTABLISHED,
+    SOCK_FIN_WAIT
+} tcp_state_t;
+
+typedef struct {
+    int id;
+    int domain;
+    int type;
+    int protocol;
+    tcp_state_t state;
+    unsigned int local_ip;
+    unsigned short local_port;
+    unsigned int remote_ip;
+    unsigned short remote_port;
+    unsigned int seq_num;
+    unsigned int ack_num;
+} socket_t;
+
+int socket(int domain, int type, int protocol);
+int connect(int sockfd, const struct sockaddr_in *addr);
+int send(int sockfd, const void *buf, int len, int flags);
+int recv(int sockfd, void *buf, int len, int flags);
+void close_socket(int sockfd);
+
 #endif

@@ -202,7 +202,7 @@ void this_pc_on_draw(int wx, int wy, int ww, int wh) {
     draw_rect(wx, wy, ww, wh, 0xFFFFFF);
     draw_string(wx+20, wy+20, "This Computer", 0x000000);
     draw_rect(wx+20, wy+35, ww-40, 1, 0xAAAAAA);
-    draw_string(wx+20, wy+45, "OS: N-OS Ultimate (Glassmorphism)", 0x555555);
+    draw_string(wx+20, wy+45, "OS: N-OS v1.1", 0x555555);
     draw_string(wx+20, wy+60, "CPU: 64-bit x86_64 (Simulated)", 0x555555);
     draw_string(wx+20, wy+75, "RAM: 32 MB", 0x555555);
     draw_string(wx+20, wy+90, "VGA: 1024x768 32-bpp", 0x555555);
@@ -660,7 +660,7 @@ void kernel_main(unsigned int magic, multiboot_info_t* mbi){
     
     // Init VBE High Def Graphics
     gfx_init(mbi->framebuffer_addr, mbi->framebuffer_pitch);
-    rtc_init();
+    // rtc_init();
     
     run_boot_sequence();
     

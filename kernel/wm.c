@@ -92,9 +92,7 @@ void draw_taskbar() {
     int tb_h = 40;
     int tb_y = SCREEN_HEIGHT - tb_h;
     
-    // Glassmorphism Taskbar Background (RTX Gradient)
-    draw_rect(0, tb_y, SCREEN_WIDTH, tb_h, 0x1A1C29);
-    draw_rect_alpha(0, tb_y, SCREEN_WIDTH, 1, 0x555577, 200); // top highlight
+    blur_region_alpha(0, tb_y, SCREEN_WIDTH, tb_h, 6, 0x111122, 160); // Frosted Glass Taskbar
     
     // Start Button (Windows 11 style center, but let's keep it left for now)
     int tb_x = 10;
@@ -137,7 +135,7 @@ void draw_taskbar() {
     }
     
     // System Tray (Time, Battery, Wi-Fi)
-    rtc_time_t t; rtc_get_time(&t);
+    time_t t; rtc_read_time(&t);
     char hstr[3], mstr[3]; format_num2(hstr, t.hour); format_num2(mstr, t.minute);
     
     int tray_x = SCREEN_WIDTH - 200;
@@ -187,7 +185,7 @@ void draw_start_menu() {
     int sm_y = SCREEN_HEIGHT - tb_h - sm_h - 10;
     
     draw_shadow_rect(sm_x, sm_y, sm_w, sm_h);
-    draw_rounded_rect_alpha(sm_x, sm_y, sm_w, sm_h, 8, 0x1A1C29, 220); // Glass
+    blur_region_alpha(sm_x, sm_y, sm_w, sm_h, 8, 0x1A1C29, 180); // Frosted Glass
     
     // Header
     draw_string(sm_x + 10, sm_y + 10, "N-OS Applications", 0xFFFFFF);
@@ -311,7 +309,11 @@ void wm_render() {
             
             draw_shadow_rect(w->x, w->y, w->w, w->h);
             // Glass window body
-            draw_rounded_rect_alpha(w->x, w->y, w->w, w->h, 8, 0xFFFFFF, 220);
+            if (dragging_win_id == w->id) {
+                draw_rect_alpha(w->x, w->y, w->w, w->h, 0xEEEEFF, 200);
+            } else {
+                blur_region_alpha(w->x, w->y, w->w, w->h, 6, 0xEEEEFF, 200);
+            }
             
             // Title bar
             unsigned int tc1 = (w->flags & WIN_FLAG_ACTIVE) ? 0xDDDDDD : 0xEEEEEE;
@@ -403,7 +405,32 @@ int wm_handle_mouse(int mx, int my, int mb, int dx, int dy) {
             else if (mx >= SCREEN_WIDTH - 150 && mx <= SCREEN_WIDTH - 130) wifi_popup_open = !wifi_popup_open;
             else if (mx >= SCREEN_WIDTH - 120 && mx <= SCREEN_WIDTH - 80) battery_popup_open = !battery_popup_open;
             else {
-                start_menu_open = 0; battery_popup_open = 0; wifi_popup_open = 0;
+                int w_x = tb_x + 50;
+                Window *curr = top_window;
+                int clicked_tab = 0;
+                while(curr) {
+                    if (curr->desktop == current_desktop) {
+                        if (mx >= w_x && mx <= w_x + 120) {
+                            if (curr->is_minimized) {
+                                curr->is_minimized = 0;
+                                bring_to_front(curr);
+                            } else {
+                                if (curr == top_window) {
+                                    curr->is_minimized = 1;
+                                } else {
+                                    bring_to_front(curr);
+                                }
+                            }
+                            clicked_tab = 1;
+                            break;
+                        }
+                        w_x += 130;
+                    }
+                    curr = curr->next;
+                }
+                if (!clicked_tab) {
+                    start_menu_open = 0; battery_popup_open = 0; wifi_popup_open = 0;
+                }
             }
             return 0;
         }

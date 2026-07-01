@@ -1,4 +1,4 @@
-# N-OS (Beta)
+# N-OS v1.1
 
 N-OS is a lightweight, custom 32-bit bare-metal Operating System built entirely from scratch in C. It features a custom graphical user interface, a virtual file system, a TCP networking stack, and a universal binary compatibility layer capable of natively executing Windows Portable Executable (PE) and Linux ELF binaries!
 
@@ -27,7 +27,7 @@ A fully functional GUI App Store and terminal Package Manager (`pkg`). Applicati
 
 You can download the pre-compiled, bootable `.iso` image directly from this repository and run it in any virtual machine!
 
-**Download ISO**: [myos.iso](./myos.iso)
+**Download ISO**: [myos.iso](myos.iso?raw=true)
 
 ### Running in VirtualBox
 1. Open VirtualBox and create a new Virtual Machine.

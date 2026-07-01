@@ -217,11 +217,63 @@ void draw_mouse(int mx, int my) {
         for(int c=0; c<8; c++) {
             if (mx+c < SCREEN_WIDTH && my+r < SCREEN_HEIGHT) {
                 if (s[r] & (0x80 >> c)) {
-                    gfx_framebuffer[(my+r)*SCREEN_WIDTH + (mx+c)] = 0x000000;
-                } else if (o[r] & (0x80 >> c)) {
                     gfx_framebuffer[(my+r)*SCREEN_WIDTH + (mx+c)] = 0xFFFFFF;
+                } else if (o[r] & (0x80 >> c)) {
+                    gfx_framebuffer[(my+r)*SCREEN_WIDTH + (mx+c)] = 0x000000;
                 }
             }
         }
     }
 }
+
+void blur_region_alpha(int x, int y, int w, int h, int radius, unsigned int tint_color, unsigned char tint_alpha) {
+    if(!gfx_framebuffer) return;
+    
+    // Optimized 2x2 downsampled blur for real-time performance on bare-metal CPU
+    for(int r = 0; r < h; r += 2) {
+        for(int c = 0; c < w; c += 2) {
+            if (x + c < 0 || x + c >= SCREEN_WIDTH || y + r < 0 || y + r >= SCREEN_HEIGHT) continue;
+            
+            unsigned int r_tot = 0, g_tot = 0, b_tot = 0;
+            int samples = 0;
+            
+            // Sample neighbors
+            for(int dy = -radius; dy <= radius; dy += 2) {
+                for(int dx = -radius; dx <= radius; dx += 2) {
+                    int nx = x + c + dx;
+                    int ny = y + r + dy;
+                    if (nx >= 0 && nx < SCREEN_WIDTH && ny >= 0 && ny < SCREEN_HEIGHT) {
+                        unsigned int px = gfx_backbuffer[ny * SCREEN_WIDTH + nx];
+                        r_tot += (px >> 16) & 0xFF;
+                        g_tot += (px >> 8) & 0xFF;
+                        b_tot += px & 0xFF;
+                        samples++;
+                    }
+                }
+            }
+            
+            if (samples > 0) {
+                unsigned int br = r_tot / samples;
+                unsigned int bg = g_tot / samples;
+                unsigned int bb = b_tot / samples;
+                
+                // Mix with tint
+                unsigned int tr = (tint_color >> 16) & 0xFF;
+                unsigned int tg = (tint_color >> 8) & 0xFF;
+                unsigned int tb = tint_color & 0xFF;
+                
+                unsigned int out_r = (tr * tint_alpha + br * (255 - tint_alpha)) / 255;
+                unsigned int out_g = (tg * tint_alpha + bg * (255 - tint_alpha)) / 255;
+                unsigned int out_b = (tb * tint_alpha + bb * (255 - tint_alpha)) / 255;
+                unsigned int final_col = (out_r << 16) | (out_g << 8) | out_b;
+                
+                // Write 2x2 block
+                gfx_backbuffer[(y+r)*SCREEN_WIDTH + (x+c)] = final_col;
+                if(x+c+1 < SCREEN_WIDTH) gfx_backbuffer[(y+r)*SCREEN_WIDTH + (x+c+1)] = final_col;
+                if(y+r+1 < SCREEN_HEIGHT) gfx_backbuffer[(y+r+1)*SCREEN_WIDTH + (x+c)] = final_col;
+                if(x+c+1 < SCREEN_WIDTH && y+r+1 < SCREEN_HEIGHT) gfx_backbuffer[(y+r+1)*SCREEN_WIDTH + (x+c+1)] = final_col;
+            }
+        }
+    }
+}
+

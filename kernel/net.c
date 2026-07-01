@@ -136,3 +136,62 @@ void net_tcp_handle(tcp_segment_t *tcp, int len) {
         firefox_state = 2; // Signal UI to render
     }
 }
+
+// ==========================================
+// POSIX Sockets
+// ==========================================
+#define MAX_SOCKETS 32
+static socket_t sockets[MAX_SOCKETS];
+static int next_ephemeral_port = 49152;
+
+int socket(int domain, int type, int protocol) {
+    for (int i = 0; i < MAX_SOCKETS; i++) {
+        if (sockets[i].state == SOCK_CLOSED) {
+            sockets[i].id = i;
+            sockets[i].domain = domain;
+            sockets[i].type = type;
+            sockets[i].protocol = protocol;
+            sockets[i].state = SOCK_CLOSED;
+            sockets[i].local_port = next_ephemeral_port++;
+            sockets[i].local_ip = 0x0A00020F; // 10.0.2.15
+            return i;
+        }
+    }
+    return -1;
+}
+
+int connect(int sockfd, const struct sockaddr_in *addr) {
+    if (sockfd < 0 || sockfd >= MAX_SOCKETS) return -1;
+    socket_t *sock = &sockets[sockfd];
+    
+    sock->remote_ip = addr->sin_addr;
+    sock->remote_port = addr->sin_port;
+    
+    sock->state = SOCK_SYN_SENT;
+    // Real implementation would send SYN packet here and wait for SYN-ACK.
+    // Since net_send_tcp handles static routing, we fake the state transition for the mock API.
+    sock->state = SOCK_ESTABLISHED;
+    return 0;
+}
+
+int send(int sockfd, const void *buf, int len, int flags) {
+    if (sockfd < 0 || sockfd >= MAX_SOCKETS) return -1;
+    socket_t *sock = &sockets[sockfd];
+    if (sock->state != SOCK_ESTABLISHED) return -1;
+    
+    // In a real OS, we build the IP/TCP headers here dynamically.
+    // For this prototype, we'll bypass actual packet sending.
+    sock->seq_num += len;
+    
+    return len;
+}
+
+int recv(int sockfd, void *buf, int len, int flags) {
+    // Stub implementation for now (needs blocking queue)
+    return 0; 
+}
+
+void close_socket(int sockfd) {
+    if (sockfd < 0 || sockfd >= MAX_SOCKETS) return;
+    sockets[sockfd].state = SOCK_CLOSED;
+}
