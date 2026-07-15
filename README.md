@@ -1,5 +1,14 @@
-# N-OS v1.1
+# N-OS v1.2
 
+## Release Notes (v1.2)
+- **Virtual Memory:** Implemented Page Directory and Page Tables (Paging enabled).
+- **Crash Recovery:** Added a Blue Screen of Death (BSOD) with register dumps to catch page faults.
+- **Preemptive Scheduler:** Implemented Hardware Timer (PIT) on IRQ0 at 100Hz for true multitasking.
+- **GUI Improvements:** Added alpha-blended glassmorphism, off-screen window backbuffering (`compositor.c`), and fixes for PS/2 mouse cursor race conditions.
+- **Storage Subsystem:** Created Block Device API, ATA PIO-mode driver, Virtual File System (VFS), and FAT32 structures.
+- **Networking/Browser:** Enhanced `kernel.c` with a mock browser capable of "downloading" applications to the VFS.
+
+## Overview
 N-OS is a lightweight, custom 32-bit bare-metal Operating System built entirely from scratch in C. It features a custom graphical user interface, a virtual file system, a TCP networking stack, and a universal binary compatibility layer capable of natively executing Windows Portable Executable (PE) and Linux ELF binaries!
 
 ## Features

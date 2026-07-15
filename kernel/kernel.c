@@ -6,6 +6,16 @@
 #include "rtc.h"
 #include "process.h"
 #include "multiboot.h"
+#include "gdt.h"
+#include "idt.h"
+#include "isr.h"
+#include "paging.h"
+#include "pit.h"
+#include "block.h"
+#include "ata.h"
+#include "vfs.h"
+#include "fat32.h"
+#include "compositor.h"
 
 static inline void outb(unsigned short p,unsigned char v){__asm__ volatile("outb %0,%1"::"a"(v),"Nd"(p));}
 static inline unsigned char inb(unsigned short p){unsigned char v;__asm__ volatile("inb %1,%0":"=a"(v):"Nd"(p));return v;}
@@ -18,10 +28,38 @@ static int k_scmp(const char *a, const char *b){
 void mouse_wait(unsigned char t){unsigned int to=100000;if(t==0){while(to--)if(inb(0x64)&1)return;}else{while(to--)if(!(inb(0x64)&2))return;}}
 void mouse_write(unsigned char d){mouse_wait(1);outb(0x64,0xD4);mouse_wait(1);outb(0x60,d);}
 unsigned char mouse_read(){mouse_wait(0);return inb(0x60);}
+#define KBD_BUF_SIZE 256
+unsigned char kbd_buf[KBD_BUF_SIZE];
+volatile int kbd_head = 0, kbd_tail = 0;
+
+void keyboard_irq(registers_t *regs) {
+    (void)regs;
+    unsigned char status = inb(0x64);
+    if (status & 1) {
+        unsigned char sc = inb(0x60);
+        kbd_buf[kbd_head] = sc;
+        kbd_head = (kbd_head + 1) % KBD_BUF_SIZE;
+    }
+}
+
+#define MOUSE_BUF_SIZE 256
+unsigned char mouse_buf[MOUSE_BUF_SIZE];
+volatile int mouse_head = 0, mouse_tail = 0;
+
+void mouse_irq(registers_t *regs) {
+    (void)regs;
+    unsigned char status = inb(0x64);
+    if (status & 0x20) {
+        unsigned char sc = inb(0x60);
+        mouse_buf[mouse_head] = sc;
+        mouse_head = (mouse_head + 1) % MOUSE_BUF_SIZE;
+    }
+}
+
 void mouse_init(){
     mouse_wait(1);outb(0x64,0xA8);
     mouse_wait(1);outb(0x64,0x20);mouse_wait(0);
-    unsigned char s=inb(0x60)|2;
+    unsigned char s=inb(0x60)|3;
     mouse_wait(1);outb(0x64,0x60);mouse_wait(1);outb(0x60,s);
     mouse_write(0xF6);mouse_read();
     mouse_write(0xF4);mouse_read();
@@ -202,7 +240,7 @@ void this_pc_on_draw(int wx, int wy, int ww, int wh) {
     draw_rect(wx, wy, ww, wh, 0xFFFFFF);
     draw_string(wx+20, wy+20, "This Computer", 0x000000);
     draw_rect(wx+20, wy+35, ww-40, 1, 0xAAAAAA);
-    draw_string(wx+20, wy+45, "OS: N-OS v1.1", 0x555555);
+    draw_string(wx+20, wy+45, "OS: N-OS v1.2", 0x555555);
     draw_string(wx+20, wy+60, "CPU: 64-bit x86_64 (Simulated)", 0x555555);
     draw_string(wx+20, wy+75, "RAM: 32 MB", 0x555555);
     draw_string(wx+20, wy+90, "VGA: 1024x768 32-bpp", 0x555555);
@@ -416,23 +454,15 @@ void firefox_on_draw(int wx, int wy, int ww, int wh) {
     } else if (firefox_state == 1) {
         draw_string_scaled(wx + ww/2 - 60, wy + 200, "Loading...", 0x888888, 2);
     } else if (firefox_state == 2) {
-        extern char http_response_buffer[1024];
         draw_string_scaled(wx + 20, wy + 100, "TCP Connection Established!", 0x00AA00, 1);
+        draw_string(wx + 20, wy + 120, "Downloading application package...", 0x0000FF);
         
-        // Basic text wrapping for the HTTP payload
-        int tx = wx + 20, ty = wy + 130;
-        for (int i=0; http_response_buffer[i] && i < 1024; i++) {
-            if (http_response_buffer[i] == '\r') continue;
-            if (http_response_buffer[i] == '\n') {
-                tx = wx + 20; ty += 15;
-            } else {
-                char s[2] = {http_response_buffer[i], 0};
-                draw_string(tx, ty, s, 0x000000);
-                tx += 8;
-                if (tx > wx + ww - 20) { tx = wx + 20; ty += 15; }
-            }
-            if (ty > wy + wh - 20) break; // End of page
-        }
+        // Simulate download
+        fs_touch("N-OS_App.exe", "MZ... PE... N-OS Executable!");
+        
+        draw_rounded_rect_alpha(wx + 20, wy + 150, 200, 40, 5, 0xDDFFDD, 255);
+        draw_string(wx + 30, wy + 160, "Download Complete!", 0x005500);
+        draw_string(wx + 30, wy + 175, "Saved as N-OS_App.exe", 0x005500);
     }
 }
 
@@ -658,6 +688,23 @@ void scopy(char *d, const char *s) {
 void kernel_main(unsigned int magic, multiboot_info_t* mbi){
     if (magic != 0x2BADB002) return;
     
+    gdt_init();
+    idt_init();
+    paging_init(); // Phase 1: Virtual Memory!
+    pit_init(100); // Phase 1: Preemptive Scheduler Hardware Timer (100Hz)
+    
+    // Storage & Filesystem Subsystem
+    ata_init();
+    vfs_init();
+    // fat32_init(0); // Optional: if we had a real disk attached
+    
+    // UI Subsystem
+    compositor_init();
+    
+    register_interrupt_handler(33, keyboard_irq);
+    register_interrupt_handler(44, mouse_irq);
+    __asm__ volatile("sti");
+    
     // Init VBE High Def Graphics
     gfx_init(mbi->framebuffer_addr, mbi->framebuffer_pitch);
     // rtc_init();
@@ -701,7 +748,7 @@ void kernel_main(unsigned int magic, multiboot_info_t* mbi){
     term_print("         @p~qp~~qMb    ", 0x00FF00); term_print("Host: ", 0x00FFFF); term_print("x86 Bare Metal (Ring 0)\n", 0xFFFFFF);
     term_print("         M|@||@) M|    ", 0x00FF00); term_print("Kernel: ", 0x00FFFF); term_print("N-OS Monolithic\n", 0xFFFFFF);
     term_print("         @,----.JM|    ", 0x00FF00); term_print("Uptime: ", 0x00FFFF); term_print("Just booted\n", 0xFFFFFF);
-    term_print("        JS^\\__/  qKL   ", 0x00FF00); term_print("Shell: ", 0x00FFFF); term_print("nshell 1.0\n", 0xFFFFFF);
+    term_print("        JS^\\__/  qKL   ", 0x00FF00); term_print("Shell: ", 0x00FFFF); term_print("nshell 1.2\n", 0xFFFFFF);
     term_print("       dZP        qKRb ", 0x00FF00); term_print("Resolution: ", 0x00FFFF); term_print("1024x768\n", 0xFFFFFF);
     term_print("      dZP          qKKb", 0x00FF00); term_print("WM: ", 0x00FFFF); term_print("N-WM (Glassmorphism)\n", 0xFFFFFF);
     term_print("\nWelcome ", 0xFFFF55);
@@ -722,9 +769,14 @@ void kernel_main(unsigned int magic, multiboot_info_t* mbi){
     int win_held = 0;
     
     while (1) {
-        unsigned char status=inb(0x64);
-        if(status&0x20){
-            unsigned char d=inb(0x60);
+        int processed = 0;
+        while (mouse_head != mouse_tail) {
+            unsigned char d = mouse_buf[mouse_tail];
+            mouse_tail = (mouse_tail + 1) % MOUSE_BUF_SIZE;
+            processed = 1;
+            
+            if (mc == 0 && !(d & 0x08)) continue; // Fix out of sync packets
+            
             mb[mc++]=(signed char)d;
             if(mc==3){
                 mc=0;
@@ -822,8 +874,13 @@ void kernel_main(unsigned int magic, multiboot_info_t* mbi){
                     if (m_btn) dirty = 1;
                 }
             }
-        } else if(status&0x01){
-            unsigned char sc=inb(0x60);
+        }
+        
+        while (kbd_head != kbd_tail) {
+            unsigned char sc = kbd_buf[kbd_tail];
+            kbd_tail = (kbd_tail + 1) % KBD_BUF_SIZE;
+            processed = 1;
+            
             if (sc == 0x1D) ctrl_held = 1;
             else if (sc == 0x9D) ctrl_held = 0;
             if (sc == 0x5B) win_held = 1;
@@ -882,6 +939,14 @@ void kernel_main(unsigned int magic, multiboot_info_t* mbi){
         
         process_schedule(); // Cooperative multitasking tick
         
+        if (!processed && !dirty && cur_x == prev_x && cur_y == prev_y) {
+            __asm__ volatile("cli");
+            if (mouse_head == mouse_tail && kbd_head == kbd_tail) {
+                __asm__ volatile("sti\n\thlt");
+            } else {
+                __asm__ volatile("sti");
+            }
+        }        
         if (dirty) {
             restore_mouse_bg(prev_x, prev_y);
             if (!logged_in) {

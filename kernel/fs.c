@@ -19,7 +19,7 @@ void fs_init(){
     fs_mkdir("home"); fs_mkdir("bin"); fs_mkdir("etc"); fs_mkdir("proc"); fs_mkdir("tmp");
 
     fs_cd("etc");
-    fs_touch("version.txt", "N-OS v0.5\n");
+    fs_touch("version.txt", "N-OS v1.2\n");
     fs_cd("proc");
     fs_touch("cpuinfo", "CPU: x86\n");
     fs[current_dir].files[0].is_proc = 1;
