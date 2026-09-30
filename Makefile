@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -m32 -ffreestanding -fno-stack-protector -nostdlib -Wall -Wextra -Ikernel/arch -Ikernel/drivers -Ikernel/mm -Ikernel/fs -Ikernel/net -Ikernel/sched -Ikernel/gui -Ikernel/loader -Ikernel/syscall -Ikernel/security -Ikernel/gui/apps -Ikernel
+CFLAGS = -m32 -ffreestanding -Wall -Wextra -Ikernel/arch -Ikernel/drivers -Ikernel/mm -Ikernel/fs -Ikernel/net -Ikernel/sched -Ikernel/gui -Ikernel/loader -Ikernel/syscall -Ikernel/security -Ikernel/gui/apps -Ikernel
 LD = ld
 LDFLAGS = -m elf_i386 -T linker.ld
 
