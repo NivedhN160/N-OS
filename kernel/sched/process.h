@@ -1,22 +1,30 @@
 #ifndef PROCESS_H
 #define PROCESS_H
 
-#define MAX_PROCESSES 16
+#include <stdint.h>
+#include "../arch/isr.h"
 
-typedef void (*process_func_t)();
+#define MAX_PROCESSES 64
 
-typedef struct {
-    int id;
-    int active;
+#define PROCESS_READY   0
+#define PROCESS_RUNNING 1
+#define PROCESS_BLOCKED 2
+#define PROCESS_ZOMBIE  3
+
+typedef struct process {
+    uint32_t pid;
+    uint32_t *page_directory;   // own CR3
+    uint32_t kernel_stack;
+    registers_t regs;
     char name[32];
-    process_func_t func;
-} Process;
+    int state;
+} process_t;
 
-extern Process processes[MAX_PROCESSES];
+void process_init(void);
+int process_create(const char *name, void (*entry)(void));
+void process_exit(int code);
+void context_switch(process_t *next);
 
-void process_init();
-int process_create(const char *name, process_func_t func);
-void process_kill(int id);
-void process_schedule();
+extern process_t *current_process;
 
 #endif

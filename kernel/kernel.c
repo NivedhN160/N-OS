@@ -1,5 +1,7 @@
 #include "vga.h"
 #include "fs.h"
+#include "process.h"
+extern process_t processes[MAX_PROCESSES];
 #include "shell.h"
 #include "auth.h"
 #include "wm.h"
@@ -254,10 +256,10 @@ void taskmgr_on_draw(int wx, int wy, int ww, int wh) {
     
     int y = wy + 20;
     for(int i=0; i<MAX_PROCESSES; i++) {
-        if (processes[i].active) {
+        if (processes[i].state != PROCESS_ZOMBIE) {
             char pid_str[3];
-            pid_str[0] = (processes[i].id / 10) + '0';
-            pid_str[1] = (processes[i].id % 10) + '0';
+            pid_str[0] = (processes[i].pid / 10) + '0';
+            pid_str[1] = (processes[i].pid % 10) + '0';
             pid_str[2] = 0;
             draw_string(wx+5, y, pid_str, 0x000000);
             draw_string(wx+40, y, processes[i].name, 0x000000);
@@ -679,6 +681,7 @@ void win_v_on_draw(int wx, int wy, int ww, int wh) {
     }
 }
 
+int slen(const char *s){ int i=0; while(s[i])i++; return i; }
 void scopy(char *d, const char *s) {
     int i=0; 
     while(s[i]){d[i]=s[i]; i++;}
@@ -690,6 +693,8 @@ void kernel_main(unsigned int magic, multiboot_info_t* mbi){
     
     gdt_init();
     idt_init();
+    void pmm_init(multiboot_info_t *mbi);
+    pmm_init(mbi);
     paging_init(); // Phase 1: Virtual Memory!
     pit_init(100); // Phase 1: Preemptive Scheduler Hardware Timer (100Hz)
     
@@ -937,7 +942,7 @@ void kernel_main(unsigned int magic, multiboot_info_t* mbi){
             }
         }
         
-        process_schedule(); // Cooperative multitasking tick
+        // process_schedule();
         
         if (!processed && !dirty && cur_x == prev_x && cur_y == prev_y) {
             __asm__ volatile("cli");
@@ -967,3 +972,8 @@ void kernel_main(unsigned int magic, multiboot_info_t* mbi){
         }
     }
 }
+
+
+
+
+

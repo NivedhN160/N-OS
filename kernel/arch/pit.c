@@ -10,7 +10,7 @@ static inline void outb_pit(uint16_t port, uint8_t val) {
 static void timer_callback(registers_t *regs) {
     (void)regs;
     tick++;
-    process_schedule(); // Preemptively run background tasks on timer tick!
+    scheduler_tick(); // Preemptively run background tasks on timer tick!
 }
 
 void pit_init(uint32_t frequency) {
@@ -24,3 +24,4 @@ void pit_init(uint32_t frequency) {
 uint32_t get_tick_count() {
     return tick;
 }
+

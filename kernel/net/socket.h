@@ -1,4 +1,4 @@
 #ifndef SOCKET_H
 #define SOCKET_H
-void socket_init();
+void socket_init(void);
 #endif

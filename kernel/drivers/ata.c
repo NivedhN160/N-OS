@@ -1,5 +1,5 @@
 #include "ata.h"
-#include "block.h"
+#include <stdint.h>
 
 static inline void outb(unsigned short port, unsigned char val) {
     __asm__ volatile("outb %0, %1" : : "a"(val), "Nd"(port));
@@ -23,8 +23,7 @@ static void ata_wait() {
     for(int i=0; i<4; i++) inb(0x1F7);
 }
 
-static int ata_read_sector(int drive, uint32_t lba, uint8_t count, void *buffer) {
-    (void)drive;
+void ata_read_sectors(uint32_t lba, uint8_t count, uint8_t *buffer) {
     outb(0x1F6, 0xE0 | ((lba >> 24) & 0x0F));
     outb(0x1F2, count);
     outb(0x1F3, (uint8_t) lba);
@@ -36,11 +35,9 @@ static int ata_read_sector(int drive, uint32_t lba, uint8_t count, void *buffer)
         while (!(inb(0x1F7) & 0x08));
         insw(0x1F0, (uint8_t*)buffer + i * 512, 256);
     }
-    return 0;
 }
 
-static int ata_write_sector(int drive, uint32_t lba, uint8_t count, void *buffer) {
-    (void)drive;
+void ata_write_sectors(uint32_t lba, uint8_t count, uint8_t *buffer) {
     outb(0x1F6, 0xE0 | ((lba >> 24) & 0x0F));
     outb(0x1F2, count);
     outb(0x1F3, (uint8_t) lba);
@@ -54,16 +51,8 @@ static int ata_write_sector(int drive, uint32_t lba, uint8_t count, void *buffer
         outb(0x1F7, 0xE7); // Cache flush
         while (inb(0x1F7) & 0x80);
     }
-    return 0;
 }
 
-static block_device_t ata_dev = {
-    .sector_size = 512,
-    .total_sectors = 0, // Should read from IDENTIFY
-    .read_blocks = ata_read_sector,
-    .write_blocks = ata_write_sector
-};
-
-void ata_init() {
-    block_register(&ata_dev);
+void ata_init(void) {
+    // Basic init
 }

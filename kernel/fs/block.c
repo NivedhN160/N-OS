@@ -1,22 +1,19 @@
 #include "block.h"
+extern void ata_read_sectors(uint32_t lba, uint8_t sectors, uint8_t *buffer);
 
-#define MAX_BLOCK_DEVICES 8
-static block_device_t* devices[MAX_BLOCK_DEVICES];
-static int dev_count = 0;
-
-void block_register(block_device_t *dev) {
-    if (dev_count < MAX_BLOCK_DEVICES) {
-        dev->id = dev_count;
-        devices[dev_count++] = dev;
-    }
+static void ata0_read(uint32_t lba, uint8_t *buf, uint32_t count) {
+    ata_read_sectors(lba, count, buf);
+}
+static void ata0_write(uint32_t lba, uint8_t *buf, uint32_t count) {
+    // stub
 }
 
-int block_read(int drive, uint32_t lba, uint8_t count, void *buffer) {
-    if (drive < 0 || drive >= dev_count || !devices[drive]->read_blocks) return -1;
-    return devices[drive]->read_blocks(drive, lba, count, buffer);
-}
+static block_dev_t ata0 = {
+    .read = ata0_read,
+    .write = ata0_write,
+    .block_size = 512
+};
 
-int block_write(int drive, uint32_t lba, uint8_t count, void *buffer) {
-    if (drive < 0 || drive >= dev_count || !devices[drive]->write_blocks) return -1;
-    return devices[drive]->write_blocks(drive, lba, count, buffer);
+block_dev_t *block_get_ata0(void) {
+    return &ata0;
 }

@@ -1,9 +1,7 @@
 #include "kmalloc.h"
-extern void term_print(const char *s, unsigned int col);
+#include "pmm.h"
 
-// We will reserve 16MB of memory for the heap, starting at physical address 16MB (0x1000000)
-#define HEAP_START 0x1000000
-#define HEAP_SIZE  0x1000000 // 16MB
+extern void term_print(const char *s, unsigned int col);
 
 typedef struct memory_block {
     size_t size;
@@ -11,23 +9,30 @@ typedef struct memory_block {
     struct memory_block* next;
 } memory_block_t;
 
-static memory_block_t* head = NULL;
+static memory_block_t* head = 0;
 
 void kmalloc_init() {
-    head = (memory_block_t*)HEAP_START;
-    head->size = HEAP_SIZE - sizeof(memory_block_t);
-    head->is_free = 1;
-    head->next = NULL;
-    term_print("kmalloc: Heap initialized at 16MB boundary\n", 0x00FF00);
+    head = (memory_block_t*)pmm_alloc_frame();
+    if(head) {
+        head->size = 4096 - sizeof(memory_block_t);
+        head->is_free = 1;
+        head->next = 0;
+    }
 }
 
 void* kmalloc(size_t size) {
-    if (head == NULL) kmalloc_init();
+    if (head == 0) kmalloc_init();
+    if (size == 0) return 0;
+    
+    // align size to 4 bytes
+    if(size % 4 != 0) size += 4 - (size % 4);
 
     memory_block_t* current = head;
-    while (current != NULL) {
+    memory_block_t* last = head;
+    
+    while (current != 0) {
         if (current->is_free && current->size >= size) {
-            // Can we split this block?
+            // Split block if it's large enough
             if (current->size > size + sizeof(memory_block_t) + 4) {
                 memory_block_t* new_block = (memory_block_t*)((uint8_t*)current + sizeof(memory_block_t) + size);
                 new_block->is_free = 1;
@@ -40,21 +45,42 @@ void* kmalloc(size_t size) {
             current->is_free = 0;
             return (void*)((uint8_t*)current + sizeof(memory_block_t));
         }
+        last = current;
         current = current->next;
     }
-    term_print("kmalloc: Out of memory!\n", 0xFF0000);
-    return NULL;
+    
+    // Need more memory. For simplicity, just grab enough pages from PMM 
+    // assuming it gives us contiguous pages (it usually does early on).
+    size_t required = size + sizeof(memory_block_t);
+    int pages_needed = (required / 4096) + 1;
+    memory_block_t* new_region = (memory_block_t*)pmm_alloc_frame();
+    for(int i=1; i<pages_needed; i++) {
+        pmm_alloc_frame(); // grab next continuous frames
+    }
+    
+    if(!new_region) {
+        term_print("kmalloc: Out of memory!\n", 0xFF0000);
+        return 0;
+    }
+    
+    new_region->size = (pages_needed * 4096) - sizeof(memory_block_t);
+    new_region->is_free = 1;
+    new_region->next = 0;
+    last->next = new_region;
+    
+    return kmalloc(size); // try again
 }
 
 void kfree(void* ptr) {
-    if (ptr == NULL) return;
+    if (ptr == 0) return;
     memory_block_t* block = (memory_block_t*)((uint8_t*)ptr - sizeof(memory_block_t));
     block->is_free = 1;
     
     // Coalesce adjacent free blocks
     memory_block_t* current = head;
-    while (current != NULL && current->next != NULL) {
-        if (current->is_free && current->next->is_free) {
+    while (current != 0 && current->next != 0) {
+        if (current->is_free && current->next->is_free && 
+           (uint8_t*)current + sizeof(memory_block_t) + current->size == (uint8_t*)current->next) {
             current->size += sizeof(memory_block_t) + current->next->size;
             current->next = current->next->next;
         } else {
